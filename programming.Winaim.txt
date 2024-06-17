@@ -1,0 +1,431 @@
+ Programming Assessment
+ 
+### Exercise 1: Customer Relationship Management (CRM) System
+ 
+*Objective*: To evaluate skills in managing customer data, handling complex queries, and implementing business logic.
+ 
+*Requirements*:
+- *Backend*: Design a database schema for a CRM system with tables for customers, contacts, opportunities, and interactions.
+- *API*: Develop RESTful APIs to manage customer records, track interactions, and update opportunities.
+- *Frontend*: Create a web interface for sales representatives to manage customer relationships.
+- *Functionalities*:
+ - Add, edit, delete, and view customer records.
+ - Log interactions (calls, meetings, emails) with customers.
+ - Track sales opportunities and their stages.
+ - Implement a dashboard to show key metrics like number of opportunities, stages, and customer interaction history.
+
+CODE : 
+
+1. Database Schema Design
+We'll use SQL for the database schema. Here's a basic design:
+
+Tables
+Customers
+
+id (Primary Key)
+name
+email
+phone
+address
+created_at
+updated_at
+Contacts
+
+id (Primary Key)
+customer_id (Foreign Key)
+name
+email
+phone
+position
+created_at
+updated_at
+Opportunities
+
+id (Primary Key)
+customer_id (Foreign Key)
+name
+stage (e.g., Prospecting, Qualification, Proposal, Closed)
+amount
+created_at
+updated_at
+Interactions
+
+id (Primary Key)
+customer_id (Foreign Key)
+contact_id (Foreign Key)
+interaction_type (e.g., call, meeting, email)
+date
+notes
+created_at
+updated_at 
+
+                             ###############################################SQLCODE###########################################
+
+CREATE TABLE customers (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    phone VARCHAR(20),
+    address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE contacts (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(id),
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    phone VARCHAR(20),
+    position VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE opportunities (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(id),
+    name VARCHAR(255) NOT NULL,
+    stage VARCHAR(50) NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE interactions (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(id),
+    contact_id INTEGER REFERENCES contacts(id),
+    interaction_type VARCHAR(50) NOT NULL,
+    date TIMESTAMP NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+            ##############BACKEND (RESTfuL APIS)##################
+
+Setup
+1 . Install Flask:
+
+
+pip install Flask flask_sqlalchemy
+
+
+2. app.py: 
+
+python Code : 
+
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///crm.db'
+db = SQLAlchemy(app)
+
+class Customer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    phone = db.Column(db.String(20))
+    address = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Contact(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    phone = db.Column(db.String(20))
+    position = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Opportunity(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    stage = db.Column(db.String(50), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Interaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
+    contact_id = db.Column(db.Integer, db.ForeignKey('contact.id'), nullable=False)
+    interaction_type = db.Column(db.String(50), nullable=False)
+    date = db.Column(db.DateTime, nullable=False)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+db.create_all()
+
+# API Routes
+
+# Customer Routes
+@app.route('/customers', methods=['POST'])
+def add_customer():
+    data = request.get_json()
+    new_customer = Customer(
+        name=data['name'],
+        email=data['email'],
+        phone=data.get('phone'),
+        address=data.get('address')
+    )
+    db.session.add(new_customer)
+    db.session.commit()
+    return jsonify({'message': 'Customer added successfully'}), 201
+
+@app.route('/customers/<int:id>', methods=['PUT'])
+def update_customer(id):
+    data = request.get_json()
+    customer = Customer.query.get(id)
+    if not customer:
+        return jsonify({'message': 'Customer not found'}), 404
+
+    customer.name = data['name']
+    customer.email = data['email']
+    customer.phone = data.get('phone')
+    customer.address = data.get('address')
+    customer.updated_at = datetime.utcnow()
+
+    db.session.commit()
+    return jsonify({'message': 'Customer updated successfully'})
+
+@app.route('/customers/<int:id>', methods=['DELETE'])
+def delete_customer(id):
+    customer = Customer.query.get(id)
+    if not customer:
+        return jsonify({'message': 'Customer not found'}), 404
+
+    db.session.delete(customer)
+    db.session.commit()
+    return jsonify({'message': 'Customer deleted successfully'})
+
+@app.route('/customers', methods=['GET'])
+def get_customers():
+    customers = Customer.query.all()
+    return jsonify([{'id': c.id, 'name': c.name, 'email': c.email, 'phone': c.phone, 'address': c.address} for c in customers])
+
+# Additional routes for Contacts, Opportunities, and Interactions can be similarly added.
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+3. FRONTEND INTERFACE 
+
+HTML CODE : 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM System</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { width: 80%; margin: auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; }
+        .form-group input, .form-group textarea { width: 100%; padding: 8px; box-sizing: border-box; }
+        .btn { padding: 10px 15px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+        .btn:hover { background-color: #0056b3; }
+        .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .table th, .table td { padding: 10px; border: 1px solid #ddd; }
+        .table th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CRM System</h1>
+        <div class="form-group">
+            <label for="customerName">Customer Name</label>
+            <input type="text" id="customerName" placeholder="Enter customer name">
+        </div>
+        <div class="form-group">
+            <label for="customerEmail">Customer Email</label>
+            <input type="email" id="customerEmail" placeholder="Enter customer email">
+        </div>
+        <div class="form-group">
+            <label for="customerPhone">Customer Phone</label>
+            <input type="text" id="customerPhone" placeholder="Enter customer phone">
+        </div>
+        <div class="form-group">
+            <label for="customerAddress">Customer Address</label>
+            <textarea id="customerAddress" placeholder="Enter customer address"></textarea>
+        </div>
+        <button class="btn" onclick="addCustomer()">Add Customer</button>
+        
+        <h2>Customer List</h2>
+        <table class="table">
+            <
+
+
+OUTPUT:
+
+Setting Up and Running the Code
+Step 1: Set Up Your Environment
+
+1. Install Flask and SQLAlchemy:
+
+pip install Flask flask_sqlalchemy
+
+
+2. Create a new Python file (app.py) and paste the backend code provided in the previous message.
+
+3. Run the Flask Application:
+
+python app.py
+
+
+######Testing the API#######
+You can use a tool like Postman or curl to interact with the API.
+
+Adding a Customer
+Request:
+
+curl -X POST http://127.0.0.1:5000/customers -H "Content-Type: application/json" -d '{"name": "John Doe", "email": "john@example.com", "phone": "1234567890", "address": "123 Elm Street"}'
+
+Response: 
+
+{
+  "message": "Customer added successfully"
+}
+
+Getting All Customers
+
+Request:
+
+curl http://127.0.0.1:5000/customers
+
+Response:
+
+[
+    {
+        "id": 1,
+        "name": "John Doe",
+        "email": "john@example.com",
+        "phone": "1234567890",
+        "address": "123 Elm Street"
+    }
+]
+
+Updating a Customer
+
+Request:
+
+curl -X PUT http://127.0.0.1:5000/customers/1 -H "Content-Type: application/json" -d '{"name": "John Doe", "email": "john.doe@example.com", "phone": "0987654321", "address": "456 Maple Avenue"}'
+
+Response:
+
+{
+  "message": "Customer updated successfully"
+}
+
+Deleting a Customer
+
+Request:
+
+curl -X DELETE http://127.0.0.1:5000/customers/1
+
+Response:
+
+{
+  "message": "Customer deleted successfully"
+}
+
+#########Frontend Interface############
+
+HTML CODE :
+
+        <tbody id="customerList"></tbody>
+        </table>
+    </div>
+
+    <script>
+        // Fetch and display customers
+        async function fetchCustomers() {
+            const response = await fetch('http://127.0.0.1:5000/customers');
+            const customers = await response.json();
+            const customerList = document.getElementById('customerList');
+            customerList.innerHTML = '';
+            customers.forEach(customer => {
+                customerList.innerHTML += `
+                    <tr>
+                        <td>${customer.id}</td>
+                        <td>${customer.name}</td>
+                        <td>${customer.email}</td>
+                        <td>${customer.phone}</td>
+                        <td>${customer.address}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Add a new customer
+        async function addCustomer() {
+            const name = document.getElementById('customerName').value;
+            const email = document.getElementById('customerEmail').value;
+            const phone = document.getElementById('customerPhone').value;
+            const address = document.getElementById('customerAddress').value;
+
+            const response = await fetch('http://127.0.0.1:5000/customers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, email, phone, address })
+            });
+
+            if (response.ok) {
+                alert('Customer added successfully');
+                fetchCustomers();
+            } else {
+                alert('Error adding customer');
+            }
+        }
+
+        // Initialize
+        fetchCustomers();
+    </script>
+</body>
+</html>
+
+#########Example Interaction##########
+Adding a Customer:
+
+Form Input:
+
+Name: John Doe
+Email: john@example.com
+Phone: 1234567890
+Address: 123 Elm Street
+
+Browser Alert:
+
+Customer added successfully
+
+Updated Customer List:
+
+HTML 
+
+<tr>
+    <td>1</td>
+    <td>John Doe</td>
+    <td>john@example.com</td>
+    <td>1234567890</td>
+    <td>123 Elm Street</td>
+</tr>
+
+###############output###################
+
+Name: John Doe
+Email: john@example.com
+Phone: 1234567890
+Address: 123 Elm Street
+
+
